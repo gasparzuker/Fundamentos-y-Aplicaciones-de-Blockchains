@@ -97,7 +97,15 @@ contract matching_pennies {
         }
     }
 
-    function pureCalculateHash(uint256 nonce, uint256 value, uint256 context) public pure returns (uint256) {
-        return uint256(keccak256(abi.encode(nonce, value, context)));
+    function pureCalculateHash(uint256 nonce, uint256 value) public view returns (bytes32) {
+        return keccak256(abi.encode(nonce, value, p1_context));
+    }
+
+    function viewContext() public view returns (uint256) {
+        return p1_context;
+    }
+
+    function viewState() public view returns (uint256) {
+        return game_state;
     }
 }
