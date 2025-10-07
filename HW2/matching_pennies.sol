@@ -47,10 +47,11 @@ contract matching_pennies {
         game_state = 2; //Ahora le toca al jugador 2
     }
 
-    function player2Play(uint256 choice) public{
+    function player2Play(bool choice) public{
         require(p2_pay, "Deposite 0.01 eth para jugar");
         require(game_state == 2 && msg.sender == player2, "No es tu turno");
-        p2_choice = choice;
+        if(choice){p2_choice = 1;}
+        else {p2_choice = 0;}
         game_state = 3;
     }
 
@@ -77,24 +78,22 @@ contract matching_pennies {
     function cleanGame() public{
         require((msg.sender == player1 || msg.sender == player2) && game_state != 0);
         if(!p2_pay){
+            p1_pay = false;
+            game_state = 0;
             bool sent = payable(player1).send(address(this).balance);
             require(sent, "Failed to send Ether");
-            p1_pay = false;
+        } else if (!p1_pay) {
             p2_pay = false;
             game_state = 0;
-        } else if (!p1_pay) {
             bool sent = payable(player2).send(address(this).balance);
             require(sent, "Failed to send Ether");
-            p1_pay = false;
-            p2_pay = false;
-            game_state = 0;
         } else if(game_state == 3 && block.timestamp > p1_context + 86400){ // Si ya paso un dia sin que el primer jugador revele
             // Doy por sentado que el p1 no reveló porque su elección no lo hacía ganar, gana por default el jugador 2
-            bool sent = payable(player2).send(address(this).balance);
-            require(sent, "Failed to send Ether");
             p1_pay = false;
             p2_pay = false;
             game_state = 0;
+            bool sent = payable(player2).send(address(this).balance);
+            require(sent, "Failed to send Ether");
         }
     }
 
