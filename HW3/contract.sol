@@ -51,11 +51,11 @@ contract Gasp_Token {
         return balances[account];
     }
 
-    function getName() public view returns (string memory) {
+    function getName() public pure returns (string memory) {
         return "Gasp";
     }
 
-    function getSymbol() public view returns (string memory) {
+    function getSymbol() public pure returns (string memory) {
         return "G$";
     }
 
@@ -90,11 +90,8 @@ contract Gasp_Token {
         require(success, "Transfer failed");
 
         // Self-destruct the contract
-        powner = (payable) owner
-        selfdestruct(owner);
+        // selfdestruct(owner);
     }
-
-    fallback() external payable {   }
 
     receive() external payable { }
 } 
