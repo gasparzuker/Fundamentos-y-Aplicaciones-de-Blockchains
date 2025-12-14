@@ -1,0 +1,94 @@
+import "hashes/sha256/512bit" as hash;
+import "hashes/sha256/256bitPadded" as leafHash;
+import "hashes/utils/256bitsDirectionHelper" as multiplex;
+
+def pow_mod(u32 base, u32 exp, u32 modulus) -> u32 {
+    u32 result = 1;
+    u32 b = base % modulus;
+    u32 e = exp;
+
+    while e > 0 {
+        if (e & 1u32 == 1u32) { //Chequea si el exponente es impar
+            result = (result * b) % modulus;
+        }
+        b = (b * b) % modulus;
+        e = e >> 1;
+    }
+
+    result
+}
+
+
+const u32 DEPTH = 2;
+
+def select(bool condition, u32[8] left, u32[8] right) -> (u32[8], u32[8]) {
+    return (condition ? right : left, condition ? left : right);
+}
+
+// Merke-Tree inclusion proof for tree depth 3 using sha256
+// directionSelector => true if current digest is on the rhs of the hash
+def checkMerkleInclusion(u32[8] root, private u32[8] token, private bool[DEPTH] directionSelector, private u32[DEPTH][8] path) -> bool {
+    // Start from the leaf
+    u32[8] leaf = leafHash(token);
+    u32[8] mut digest = leaf;
+
+    // Loop up the tree
+    for u32 i in 0..DEPTH {
+        (u32[8], u32[8]) s = select(directionSelector[i], digest, path[i]);
+        digest = hash(s.0, s.1);
+    }
+
+    return digest == root;
+}
+
+def validVote(
+    private bool vote,
+    private u32 r,
+
+    u32 g,
+    u32 h,
+    u32 p,
+
+    u32 c1,
+    u32 c2
+) {
+    // bool → bit
+    u32 m = 0;
+    gm = 1;
+    if (vote) {
+        m = 1;
+        gm = g;
+    }
+
+    // ElGamal
+    assert(c1 == pow_mod(g, r, p));
+    assert(c2 == (pow_mod(h, r, p) * gm) % p);
+}
+
+def main( 
+    //Parámetros para merkleInclusion
+    u32[8] root,
+    private u32[8] token,
+    private bool[DEPTH] directionSelector,
+    private u32[DEPTH][8] path,
+
+    //Parametros para ValidVote
+    private bool vote,
+    private u32 r,
+
+    u32 g,
+    u32 h,
+    u32 p,
+
+    u32 c1,
+    u32 c2,
+    
+    nullifier
+    ){
+    
+    assert(checkMerkleInclusion(root, token, directionSelector, path))
+    assert(validVote(vote, r, g, h, p, c1, c2));
+    assert(nullifier == hash(token, g)) // Lo hago de esta manera ya que el nullifier es público, para que no se pueda saber fácilmente que hojas del árbol votaron.
+    return true;
+
+}
