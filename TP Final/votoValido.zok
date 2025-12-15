@@ -1,38 +1,54 @@
+//Para merkle inclusion
 import "hashes/sha256/512bit" as hash;
 import "hashes/sha256/256bitPadded" as leafHash;
 import "hashes/utils/256bitsDirectionHelper" as multiplex;
 
-def pow_mod(u32 base, u32 exp, u32 modulus) -> u32 {
-    u32 result = 1;
-    u32 b = base % modulus;
-    u32 e = exp;
+//Para voto valido
+import "ecc/babyjubjubParams" as params;
+import "ecc/babyjubjubAdd" as ecAdd;
+import "ecc/babyjubjubMul" as ecMul;
 
-    while e > 0 {
-        if (e & 1u32 == 1u32) { //Chequea si el exponente es impar
-            result = (result * b) % modulus;
-        }
-        b = (b * b) % modulus;
-        e = e >> 1;
-    }
+//Funcion principal
+def main( 
+    //Parámetros para merkleInclusion
+    //Privados
+    private u32[8] token,
+    private bool[DEPTH] directionSelector,
+    private u32[DEPTH][8] path,
 
-    result
+    //Parametros para ValidVote
+
+    //Publicos
+    Point c1,
+    Point c2,
+
+    //Privados
+    private bool vote,
+    private u32 r,
+
+    //Para el nullifier
+    private field nullifier //TO DO
+    ){
+    
+    assert(checkMerkleInclusion(root, token, directionSelector, path))
+    assert(validVote((C1, C2, r, vote)
+)));
+    assert(nullifier == hash(token, g)) // Lo hago de esta manera ya que el nullifier es público, para que no se pueda saber fácilmente que hojas del árbol votaron.
+    return true;
 }
 
-
+// Merkle Inclusion
 const u32 DEPTH = 2;
+const root = [] //Raiz del Merkle Tree        HARDCODEAR PARA VOTACION 
 
 def select(bool condition, u32[8] left, u32[8] right) -> (u32[8], u32[8]) {
     return (condition ? right : left, condition ? left : right);
 }
 
-// Merke-Tree inclusion proof for tree depth 3 using sha256
-// directionSelector => true if current digest is on the rhs of the hash
 def checkMerkleInclusion(u32[8] root, private u32[8] token, private bool[DEPTH] directionSelector, private u32[DEPTH][8] path) -> bool {
-    // Start from the leaf
     u32[8] leaf = leafHash(token);
     u32[8] mut digest = leaf;
 
-    // Loop up the tree
     for u32 i in 0..DEPTH {
         (u32[8], u32[8]) s = select(directionSelector[i], digest, path[i]);
         digest = hash(s.0, s.1);
@@ -41,54 +57,39 @@ def checkMerkleInclusion(u32[8] root, private u32[8] token, private bool[DEPTH] 
     return digest == root;
 }
 
-def validVote(
-    private bool vote,
-    private u32 r,
 
-    u32 g,
-    u32 h,
-    u32 p,
-
-    u32 c1,
-    u32 c2
-) {
-    // bool → bit
-    u32 m = 0;
-    gm = 1;
-    if (vote) {
-        m = 1;
-        gm = g;
-    }
-
-    // ElGamal
-    assert(c1 == pow_mod(g, r, p));
-    assert(c2 == (pow_mod(h, r, p) * gm) % p);
+//Valid Vote
+struct Point {
+    field x;
+    field y;
 }
 
-def main( 
-    //Parámetros para merkleInclusion
-    u32[8] root,
-    private u32[8] token,
-    private bool[DEPTH] directionSelector,
-    private u32[DEPTH][8] path,
+const Point G = {Gx, Gy} // Generador         HARDCODEAR PARA VOTACION
+const Point H = {Hx, Hy} // Clave pública     HARDCODEAR PARA VOTACION
 
-    //Parametros para ValidVote
-    private bool vote,
-    private u32 r,
+def main(
+    // --- PUBLICOS --- 
+    // Estos valores van a ser los que se guarden en el smart contract, sumados con los demas votos y luego desencriptados por la private key para calcular el total
+    Point C1,     // rG
+    Point C2,     // mG + rH
 
-    u32 g,
-    u32 h,
-    u32 p,
+    // --- PRIVADOS ---
+    field r,
+    bool vote      // voto (0 o 1)
+) {
+    u32 m = 0
+    if(vote){m = 1}
 
-    u32 c1,
-    u32 c2,
-    
-    nullifier
-    ){
-    
-    assert(checkMerkleInclusion(root, token, directionSelector, path))
-    assert(validVote(vote, r, g, h, p, c1, c2));
-    assert(nullifier == hash(token, g)) // Lo hago de esta manera ya que el nullifier es público, para que no se pueda saber fácilmente que hojas del árbol votaron.
+    Point rG = ecMul(r, G);
+    assert(rG.x == C1.x);
+    assert(rG.y == C1.y);
+
+    Point rH = ecMul(r, H);
+
+    Point mG = ecMul(m, G);
+    Point expectedC2 = ecAdd(mG, rH);
+
+    assert(expectedC2.x == C2.x);
+    assert(expectedC2.y == C2.y);
     return true;
-
 }
