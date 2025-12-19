@@ -1,0 +1,104 @@
+//Para merkle inclusion
+import "hashes/sha256/512bit" as hash;
+import "hashes/sha256/256bitPadded" as leafHash;
+import "hashes/utils/256bitsDirectionHelper" as multiplex;
+
+//Para voto valido
+import "ecc/babyjubjubParams" as Params;
+import "ecc/edwardsAdd" as ecAdd;
+import "ecc/edwardsScalarMult" as ecMul;
+import "utils/casts/u32_array_to_bool_array.zok" as castBool;
+
+// Merkle Inclusion
+const u32 DEPTH = 2;
+const u32[8] root = [0x6e91d0d2,0x78aa6339,0xc4c452ac,0xf6e51270,0x8aa5bd3b,0xc1e92ee5,0x0815a83d,0x371f8b2e]; //Raiz del Merkle Tree
+
+def select(bool condition, u32[8] left, u32[8] right) -> (u32[8], u32[8]) {
+    return (condition ? right : left, condition ? left : right);
+}
+
+def checkMerkleInclusion(u32[8] token, bool[DEPTH] directionSelector, u32[DEPTH][8] path) -> bool {
+    u32[8] leaf = leafHash(token);
+    u32[8] mut digest = leaf;
+
+    for u32 i in 0..DEPTH {
+        (u32[8], u32[8]) s = select(directionSelector[i], digest, path[i]);
+        digest = hash(s.0, s.1);
+    }
+
+    bool mut isEqual = true;
+    for u32 i in 0..8{
+        isEqual = digest[i] == root[i];
+    }
+    return isEqual;
+}
+
+//Valid Vote
+// Generador
+const field Gx = 16540640123574156134436876038791482806971768689494387082833631921987005038935;
+const field Gy = 20819045374670962167435360035096875258406992893633759881276124905556507972311;
+ // Clave pública
+const field Hx = 13430624290144610199046917844800525545438984275839206292223261386245851008921;
+const field Hy = 12875888610528699823168293398233054693900374645852792388750630730514979280099;
+
+def validVote(
+    // --- PUBLICOS --- 
+    // Estos valores van a ser los que se guarden en el smart contract, sumados con los demas votos y luego desencriptados por la private key para calcular el total
+    field[2] C1,     // rG
+    field[2] C2,     // mG + rH
+
+    // --- PRIVADOS ---
+    u32[8] r,
+    bool vote      // voto (0 o 1)  
+) -> bool {
+    bool[256] mut  m = [false; 256];
+    m[0] = vote;
+    field[2] G = [Gx, Gy];
+    field[2] H = [Hx, Hy];
+
+    bool[256] rbits = castBool(r);
+    field[2] rG = ecMul(rbits,G,Params());
+
+    assert(rG[0] == C1[0]);
+    assert(rG[1] == C1[1]);
+
+    bool[256] rbits = castBool(r);
+    field[2] rH = ecMul(rbits, H, Params());
+
+    field[2] mG = ecMul(m, G, Params());
+    field[2] expectedC2 = ecAdd(mG, rH, Params());
+
+    assert(expectedC2[0] == C2[0]);
+    assert(expectedC2[1] == C2[1]);
+    return true;
+}
+
+//Funcion principal
+def main( 
+    //Parámetros para merkleInclusion
+    //Privados
+    private u32[8] token,
+    private bool[DEPTH] directionSelector,
+    private u32[DEPTH][8] path,
+
+    //Parametros para ValidVote
+
+    //Publicos
+    field[2] c1,
+    field[2] c2,
+
+    //Privados
+    private bool vote,
+    private u32[8] r,
+
+    //Para el nullifier
+    u32[8] nullifier
+    ){
+    
+    assert(checkMerkleInclusion(token, directionSelector, path));
+    assert(validVote(c1, c2, r, vote));
+    
+    //Para que no se sepa de que hoja es el voto
+    u32[8] nullifier_mask = [0x01234567,0x89abcdef,0x01234567,0x89abcdef,0x01234567,0x89abcdef,0x01234567,0x89abcdef];
+    assert(nullifier == hash(token, nullifier_mask));
+}

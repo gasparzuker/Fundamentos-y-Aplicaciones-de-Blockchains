@@ -1,0 +1,1 @@
+Los contratos verificadores de las ZKP se encuentran en la carpeta donde está el código fuente de las mismas.

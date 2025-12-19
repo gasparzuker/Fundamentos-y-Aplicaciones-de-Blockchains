@@ -1,0 +1,6 @@
+import "hashes/sha256/512bit" as hash;
+
+def main(u32[8] a, u32[8] b) -> u32[8] {
+    u32[8] hash = hash(a,b);
+    return hash;
+}

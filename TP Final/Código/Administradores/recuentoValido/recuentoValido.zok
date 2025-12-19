@@ -1,0 +1,27 @@
+import "ecc/babyjubjubParams" as Params;
+import "ecc/edwardsScalarMult" as ecMul;
+import "ecc/edwardsAdd" as ecAdd;
+import "ecc/edwardsNegate" as ecNegate;
+import "utils/casts/u32_array_to_bool_array.zok" as cast;
+
+
+def main(
+    private u32[8] x, 
+    field[2] C1, 
+    field[2] C2, 
+    u32[8] result 
+) {
+
+    bool[256] scalarBits = cast(x); // clave privada como 256 bits
+    field[2] rH = ecMul(scalarBits, C1, Params());
+
+    field[2] minus_rH = ecNegate(rH);
+    field[2] mG = ecAdd(C2, minus_rH, Params());
+
+    field[2] G = [16540640123574156134436876038791482806971768689494387082833631921987005038935, 20819045374670962167435360035096875258406992893633759881276124905556507972311];
+    bool[256] resultbits = cast(result);
+    field[2] resultG = ecMul(resultbits, G, Params());
+
+    assert (resultG[0] == mG[0]);
+    assert (resultG[1] == mG[1]);
+}
